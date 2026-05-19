@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Pokédex</title>
+
+<style>
+/* BASE */
+body {
+    margin: 0;
+    font-family: Arial;
+    background: #1a1a1a;
+}
+
+/* MAIN WRAPPER */
+#pokedex {
+    display: flex;
+    height: 100vh;
+    border: 10px solid #d40000;
+    box-sizing: border-box;
+}
+
+/* =========================
+   🟢 LIST MODE (DEFAULT)
+   ========================= */
+
+/* sidebar becomes FULL SCREEN */
+#sidebar {
+    width: 100%;
+    background: #b30000;
+    display: flex;
+    flex-direction: column;
+}
+
+/* hide detail page */
+#detailPage {
+    display: none;
+}
+
+/* center list nicely */
+#list {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+    padding: 10px;
+    overflow-y: auto;
+}
+
+/* =========================
+   🔵 DETAIL MODE
+   ========================= */
+
+#pokedex.detail-mode #sidebar {
+    width: 320px;
+}
+
+#pokedex.detail-mode #detailPage {
+    display: block;
+    flex: 1;
+    background: #111;
+    color: white;
+    text-align: center;
+    padding: 20px;
+}
+
+/* title + search */
+#sidebar h2 {
+    text-align: center;
+    color: white;
+    margin: 10px 0;
+}
+
+#search {
+    margin: 10px;
+    padding: 8px;
+    border: none;
+    border-radius: 6px;
+}
+
+/* cards */
+.pokemon {
+    background: white;
+    border-radius: 10px;
+    padding: 8px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.pokemon img {
+    width: 70px;
+}
+
+/* button */
+button {
+    background: #d40000;
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 8px;
+}
+</style>
+
+</head>
+
+<body>
+
+<!-- LIST PAGE -->
+<div id="pokedex">
+
+    <div id="sidebar">
+        <h2>Pokédex</h2>
+        <input id="search" placeholder="Search Pokémon...">
+        <div id="list"></div>
+    </div>
+
+    <div id="detailPage">
+        <button onclick="back()">⬅ Back</button>
+        <div id="detailContent"></div>
+    </div>
+
+</div>
+
+<script>
+
+const list = document.getElementById("list");
+const search = document.getElementById("search");
+const listPage = document.getElementById("listPage");
+const detailPage = document.getElementById("detailPage");
+const detailContent = document.getElementById("detailContent");
+
+let allPokemon = [];
+
+// LOAD POKEMON
+async function loadPokemon() {
+    const res = await fetch("https://pokeapi.co/api/v2/pokemon?limit=151");
+    const data = await res.json();
+
+    allPokemon = data.results;
+    renderList(allPokemon);
+}
+
+// RENDER LIST
+function renderList(pokemonList) {
+    list.innerHTML = "";
+
+    pokemonList.forEach(p => {
+
+        const id = p.url.split("/")[6];
+
+        const div = document.createElement("div");
+        div.className = "pokemon";
+
+        div.innerHTML = `
+            <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png">
+            <p>${p.name.charAt(0).toUpperCase() + p.name.slice(1)}</p>
+        `;
+
+        div.onclick = () => openPokemon(p.name);
+
+        list.appendChild(div);
+    });
+}
+
+// OPEN DETAIL PAGE
+async function openPokemon(name) {
+
+    // MAIN DATA
+    const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${name}`);
+    const data = await res.json();
+
+    // SPECIES DATA (for Pokédex entries)
+    const speciesRes = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${name}`);
+    const speciesData = await speciesRes.json();
+
+    // GET ENGLISH POKEDEX ENTRY
+    let entry = "No entry found.";
+
+    for (const flavor of speciesData.flavor_text_entries) {
+        if (flavor.language.name === "en") {
+            entry = flavor.flavor_text;
+            break;
+        }
+    }
+
+    // FORMAT STATS
+    let statsHTML = "";
+
+    data.stats.forEach(stat => {
+        statsHTML += `
+            <p>
+                ${stat.stat.name.toUpperCase()}: 
+                ${stat.base_stat}
+            </p>
+        `;
+    });
+
+    // FORMAT MOVES (first 10)
+    let movesHTML = "";
+
+    data.moves.slice(0, 10).forEach(move => {
+        movesHTML += `
+            <li>${move.move.name}</li>
+        `;
+    });
+
+    // FORMAT ABILITIES
+    let abilitiesHTML = "";
+
+    data.abilities.forEach(ability => {
+        abilitiesHTML += `
+            <li>${ability.ability.name}</li>
+        `;
+    });
+
+    // DISPLAY EVERYTHING
+    document.getElementById("detailContent").innerHTML = `
+        <h1>${data.name.charAt(0).toUpperCase() + data.name.slice(1)}</h1>
+
+        <img src="${data.sprites.front_default}">
+
+        <h2>Pokédex Entry</h2>
+        <p>${entry}</p>
+
+        <h2>Type</h2>
+        <p>${data.types[0].type.name}</p>
+
+        <h2>Abilities</h2>
+        <ul>${abilitiesHTML}</ul>
+
+        <h2>Stats</h2>
+        ${statsHTML}
+
+        <h2>Moves</h2>
+        <ul>${movesHTML}</ul>
+    `;
+
+    // SWITCH TO DETAIL MODE
+    document.getElementById("pokedex").classList.add("detail-mode");
+}
+let mode = "list";
+// BACK BUTTON
+function back() {
+    document.getElementById("pokedex").classList.remove("detail-mode");
+}
+
+// SEARCH
+search.addEventListener("input", () => {
+    const value = search.value.toLowerCase();
+
+    const filtered = allPokemon.filter(p =>
+        p.name.toLowerCase().includes(value)
+    );
+
+    renderList(filtered);
+});
+loadPokemon();
+
+</script>
+
+</body>
+</html>
